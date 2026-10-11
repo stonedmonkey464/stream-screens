@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Starting Overlay - Toxic Green</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-green: #0a1f0a;
+            --bg-color: #050505;
+            --text-color: #ffffff;
+            --hud-color: rgba(57, 255, 20, 0.6);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--text-color);
+        }
+
+        /* --- BACKGROUND FALLBACK & VIDEO --- */
+        .bg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: radial-gradient(circle at center, #112b11 0%, #000000 70%);
+        }
+
+        #bg-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.8; /* Slightly transparent to mix with background color */
+        }
+
+        /* --- OVERLAYS: SCANLINES & VIGNETTE --- */
+        .overlay-scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        .overlay-vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            box-shadow: inset 0 0 200px rgba(0, 0, 0, 0.9);
+            pointer-events: none;
+        }
+
+        /* --- CANVAS PARTICLES --- */
+        #particles-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* --- HUD ELEMENTS --- */
+        .hud {
+            position: absolute;
+            z-index: 10;
+            color: var(--hud-color);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px rgba(57, 255, 20, 0.3);
+        }
+
+        .hud::before {
+            content: '';
+            position: absolute;
+            background: var(--neon-green);
+        }
+
+        /* Top Left */
+        .hud-tl {
+            top: 40px;
+            left: 40px;
+            border-left: 2px solid var(--neon-green);
+            padding-left: 10px;
+        }
+
+        /* Top Right: Biohazard & Status */
+        .hud-tr {
+            top: 40px;
+            right: 40px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .hud-tr svg {
+            width: 50px;
+            height: 50px;
+            filter: drop-shadow(0 0 5px var(--neon-green));
+            overflow: visible;
+        }
+
+        /* Bottom Left: Terminal */
+        .hud-bl {
+            bottom: 40px;
+            left: 40px;
+            width: 300px;
+            height: 100px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        /* Bottom Right: Coordinates/System */
+        .hud-br {
+            bottom: 40px;
+            right: 40px;
+            text-align: right;
+            border-right: 2px solid var(--neon-green);
+            padding-right: 10px;
+        }
+
+        /* --- CENTER CONTENT --- */
+        .center-container {
+            position: absolute;
+            top: 50%;
+            left: 8%;
+            transform: translateY(-50%);
+            z-index: 20;
+            text-align: left;
+            width: 45%;
+            max-width: 800px;
+        }
+
+        /* Glitch Text Effect */
+        .glitch-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .glitch-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 6rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            color: #ffffff;
+            text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--dark-green);
+            position: relative;
+            display: inline-block;
+        }
+
+        .glitch-text::before,
+        .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        .glitch-text::before {
+            left: 3px;
+            text-shadow: -2px 0 #ff0000;
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+            animation: glitch-anim 3s infinite linear alternate-reverse;
+        }
+
+        .glitch-text::after {
+            left: -3px;
+            text-shadow: -2px 0 var(--neon-green);
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+            animation: glitch-anim2 2.5s infinite linear alternate-reverse;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 80%;
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(10, 31, 10, 0.8);
+            border: 1px solid rgba(57, 255, 20, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--neon-green);
+            box-shadow: 0 0 15px var(--neon-green);
+            width: 0%;
+            animation: load-progress 15s infinite cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .progress-brackets {
+            position: absolute;
+            top: -10px;
+            left: -20px;
+            right: -20px;
+            bottom: -10px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .progress-brackets::before, .progress-brackets::after {
+            content: '';
+            width: 15px;
+            height: 100%;
+            border: 2px solid var(--hud-color);
+        }
+        .progress-brackets::before {
+            border-right: none;
+        }
+        .progress-brackets::after {
+            border-left: none;
+        }
+
+        /* Sub Status Text */
+        .status-text {
+            font-size: 1.2rem;
+            color: var(--neon-green);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: pulse-opacity 2s infinite;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes glitch-anim {
+            0% { clip-path: polygon(0 2%, 100% 2%, 100% 5%, 0 5%); }
+            20% { clip-path: polygon(0 15%, 100% 15%, 100% 15%, 0 15%); }
+            40% { clip-path: polygon(0 10%, 100% 10%, 100% 20%, 0 20%); }
+            60% { clip-path: polygon(0 1%, 100% 1%, 100% 2%, 0 2%); }
+            80% { clip-path: polygon(0 33%, 100% 33%, 100% 33%, 0 33%); }
+            100% { clip-path: polygon(0 44%, 100% 44%, 100% 44%, 0 44%); }
+        }
+
+        @keyframes glitch-anim2 {
+            0% { clip-path: polygon(0 25%, 100% 25%, 100% 30%, 0 30%); }
+            20% { clip-path: polygon(0 3%, 100% 3%, 100% 3%, 0 3%); }
+            40% { clip-path: polygon(0 5%, 100% 5%, 100% 20%, 0 20%); }
+            60% { clip-path: polygon(0 20%, 100% 20%, 100% 20%, 0 20%); }
+            80% { clip-path: polygon(0 23%, 100% 23%, 100% 23%, 0 23%); }
+            100% { clip-path: polygon(0 50%, 100% 50%, 100% 50%, 0 50%); }
+        }
+
+        @keyframes load-progress {
+            0% { width: 0%; }
+            10% { width: 15%; }
+            30% { width: 35%; }
+            50% { width: 45%; }
+            70% { width: 85%; }
+            90% { width: 95%; }
+            100% { width: 100%; }
+        }
+
+        @keyframes pulse-opacity {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes pulse-glow {
+            0% { filter: drop-shadow(0 0 2px var(--neon-green)); opacity: 0.8; }
+            100% { filter: drop-shadow(0 0 15px var(--neon-green)); opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Video & Background -->
+    <div class="bg-container">
+        <!-- 
+            OBS INSTRUCTIONS: 
+            Place 'starting.mp4' in the same folder as this HTML file.
+            If the video isn't found, the CSS radial background acts as a seamless premium fallback.
+        -->
+        <video id="bg-video" autoplay loop muted playsinline>
+            <source src="starting.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Aesthetic Overlays -->
+    <canvas id="particles-canvas"></canvas>
+    <div class="overlay-scanlines"></div>
+    <div class="overlay-vignette"></div>
+
+    <!-- HUD Elements -->
+    <div class="hud hud-tl">
+        SYS.CORE_v2.4.1 <br>
+        <span style="font-size: 0.7em; opacity: 0.7;">[ENCRYPTED CONNECTION]</span>
+    </div>
+
+    <div class="hud hud-tr">
+        <div>
+            STATUS: <span style="color: #fff;">SECURE</span><br>
+            THREAT LEVEL: <span style="color: var(--neon-green);">ZERO</span>
+        </div>
+        <!-- Premium Tactical Radar / Sensor SVG -->
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <!-- Outer rotating dashed ring -->
+            <circle cx="50" cy="50" r="42" fill="none" stroke="var(--neon-green)" stroke-width="2" stroke-dasharray="10 6" opacity="0.9">
+                <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="12s" repeatCount="indefinite" />
+            </circle>
+            <!-- Inner solid ring -->
+            <circle cx="50" cy="50" r="32" fill="none" stroke="var(--neon-green)" stroke-width="1" opacity="0.4" />
+            <!-- Center dot pulsing -->
+            <circle cx="50" cy="50" r="6" fill="var(--neon-green)">
+                <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
+            </circle>
+            <!-- Crosshairs -->
+            <line x1="50" y1="2" x2="50" y2="12" stroke="var(--neon-green)" stroke-width="2" opacity="0.8" />
+            <line x1="50" y1="88" x2="50" y2="98" stroke="var(--neon-green)" stroke-width="2" opacity="0.8" />
+            <line x1="2" y1="50" x2="12" y2="50" stroke="var(--neon-green)" stroke-width="2" opacity="0.8" />
+            <line x1="88" y1="50" x2="98" y2="50" stroke="var(--neon-green)" stroke-width="2" opacity="0.8" />
+        </svg>
+    </div>
+
+    <div class="hud hud-bl" id="terminal">
+        <!-- Terminal lines generated by JS -->
+    </div>
+
+    <div class="hud hud-br">
+        OVERRIDE_AUTH: <span style="color: #fff;">GRANTED</span><br>
+        <span id="hex-clock" style="font-size: 1.2em; font-weight: bold; text-shadow: 0 0 8px var(--neon-green);"></span>
+    </div>
+
+    <!-- Center Typography & Loaders -->
+    <div class="center-container">
+        <div class="glitch-wrapper">
+            <h1 class="glitch-text" data-text="STARTING SOON">STARTING SOON</h1>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-brackets"></div>
+            <div class="progress-track">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="status-text" id="status-text">INITIALIZING SYSTEMS...</div>
+    </div>
+
+    <script>
+        // --- 1. SUBTEXT UPDATER ---
+        const statusPhrases = [
+            "INITIALIZING NEURAL LINK...",
+            "DECRYPTING ASSETS...",
+            "CALIBRATING OVERLAY...",
+            "ESTABLISHING SECURE CONNECTION...",
+            "LOADING ENVIRONMENT...",
+            "AWAITING BROADCAST SIGNAL...",
+            "PURGING TOXIC CACHE...",
+            "SYSTEMS NOMINAL..."
+        ];
+        
+        const statusElement = document.getElementById('status-text');
+        
+        setInterval(() => {
+            const randomPhrase = statusPhrases[Math.floor(Math.random() * statusPhrases.length)];
+            statusElement.innerText = randomPhrase;
+        }, 4000);
+
+        // --- 2. TERMINAL EFFECT ---
+        const terminal = document.getElementById('terminal');
+        const processes = [
+            "sys.mem_check()", "load_module(gfx_core)", "auth_token_refresh",
+            "ping 127.0.0.1", "bypass_firewall --force", "init_bio_sensors()",
+            "connecting_peers...", "resolving_dns", "allocating_vram", 
+            "compiling_shaders..."
+        ];
+
+        function addTerminalLine() {
+            const line = document.createElement('div');
+            const isHex = Math.random() > 0.5;
+            
+            if(isHex) {
+                // Generate random hex code
+                let hex = "0x";
+                for(let i=0; i<8; i++) {
+                    hex += Math.floor(Math.random()*16).toString(16).toUpperCase();
+                }
+                line.innerText = `> MEM_ADDR: [${hex}] OK`;
+            } else {
+                const proc = processes[Math.floor(Math.random() * processes.length)];
+                line.innerText = `> EXEC: ${proc}`;
+            }
+
+            terminal.appendChild(line);
+
+            if (terminal.childElementCount > 5) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        setInterval(addTerminalLine, 800);
+        addTerminalLine(); // Initial call
+
+        // --- 3. HEX CLOCK / DATA STREAM ---
+        const hexClock = document.getElementById('hex-clock');
+        setInterval(() => {
+            let dataStream = "";
+            for(let i=0; i<6; i++) {
+                dataStream += Math.floor(Math.random()*16).toString(16).toUpperCase();
+            }
+            hexClock.innerText = `DATA_STREAM: ${dataStream}`;
+        }, 150);
+
+        // --- 4. GREEN ENERGY PARTICLES (CANVAS) ---
+        const canvas = document.getElementById('particles-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2.5 + 0.5;
+                this.speedX = Math.random() * 1 - 0.5;
+                this.speedY = Math.random() * -1 - 0.5; // Drift upwards like toxic gas
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                // Reset particle if it goes off screen
+                if (this.y < 0) {
+                    this.y = canvas.height;
+                    this.x = Math.random() * canvas.width;
+                }
+                
+                // Twinkling effect
+                if(Math.random() > 0.98) {
+                    this.opacity = Math.random() * 0.8 + 0.2;
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(57, 255, 20, ${this.opacity})`;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#39ff14';
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            for (let i = 0; i < 70; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animateParticles);
+        }
+
+        initParticles();
+        animateParticles();
+    </script>
+</body>
+</html>

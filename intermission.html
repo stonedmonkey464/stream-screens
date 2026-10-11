@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STREAM LIVE — Tactical Overlay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-green: #0a1f0a;
+            --bg-color: #050505;
+            --text-color: #ffffff;
+            --hud-color: rgba(57, 255, 20, 0.6);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--text-color);
+        }
+
+        .bg-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            background: radial-gradient(circle at center, #112b11 0%, #000000 70%);
+        }
+
+        #bg-video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0.85;
+        }
+
+        .overlay-scanlines {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 2;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0), rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        .overlay-vignette {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 3;
+            box-shadow: inset 0 0 250px rgba(0,0,0,0.95);
+            pointer-events: none;
+        }
+
+        #particles-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* --- HUD --- */
+        .hud {
+            position: absolute;
+            z-index: 10;
+            color: var(--hud-color);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px rgba(57,255,20,0.3);
+        }
+
+        .hud-tl {
+            top: 40px; left: 40px;
+            border-left: 2px solid var(--neon-green);
+            padding-left: 10px;
+        }
+
+        .hud-tr {
+            top: 40px; right: 40px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .hud-tr svg {
+            width: 50px; height: 50px;
+            filter: drop-shadow(0 0 5px var(--neon-green));
+            overflow: visible;
+        }
+
+        /* Bottom Left: Single Tactical Message */
+        .hud-bl {
+            bottom: 40px; left: 40px;
+            width: 380px;
+            font-size: 0.82rem;
+        }
+
+        .tac-toast {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            background: rgba(0,0,0,0.55);
+            border-left: 3px solid var(--neon-green);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .tac-toast.visible { opacity: 1; }
+
+        .tac-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+        .tac-text       { color: var(--neon-green); text-shadow: 0 0 5px var(--neon-green); }
+        .tac-text.alert { color: #ff4444; text-shadow: 0 0 8px #ff0000; }
+        .tac-text.warn  { color: #ffcc00; text-shadow: 0 0 8px #ffaa00; }
+
+        .hud-br {
+            bottom: 40px; right: 40px;
+            text-align: right;
+            border-right: 2px solid var(--neon-green);
+            padding-right: 10px;
+        }
+
+        /* --- CENTER — chest of character, between hands --- */
+        .center-container {
+            position: absolute;
+            top: 62%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            text-align: center;
+            width: 80%;
+            max-width: 1100px;
+        }
+
+        /* STREAM LIVE badge */
+        .stream-live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.85;
+        }
+
+        .live-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #ff2222;
+            box-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000;
+            animation: blink-dot 1.2s infinite;
+        }
+
+        @keyframes blink-dot {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.1; }
+        }
+
+        /* Glitch Timer */
+        .glitch-wrapper { position: relative; margin-bottom: 6px; }
+
+        .glitch-timer {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 8rem;
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: #ffffff;
+            text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--dark-green);
+            position: relative;
+            display: inline-block;
+        }
+
+        .glitch-timer::before,
+        .glitch-timer::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: transparent;
+            pointer-events: none;
+        }
+
+        .glitch-timer::before {
+            left: 4px;
+            text-shadow: -3px 0 #ff0000;
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+            animation: glitch-anim 3s infinite linear alternate-reverse;
+        }
+
+        .glitch-timer::after {
+            left: -4px;
+            text-shadow: -3px 0 var(--neon-green);
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+            animation: glitch-anim2 2.5s infinite linear alternate-reverse;
+        }
+
+        /* Timer label */
+        .timer-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            color: rgba(57,255,20,0.5);
+            letter-spacing: 4px;
+            margin-top: -8px;
+            margin-bottom: 14px;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            width: 50%; margin: 12px auto;
+            position: relative;
+        }
+
+        .progress-track {
+            width: 100%; height: 4px;
+            background: rgba(10,31,10,0.8);
+            border: 1px solid rgba(57,255,20,0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green);
+            width: 0%;
+            transition: width 0.5s linear;
+        }
+
+        .progress-brackets {
+            position: absolute;
+            top: -6px; left: -15px; right: -15px; bottom: -6px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .progress-brackets::before, .progress-brackets::after {
+            content: '';
+            width: 10px; height: 100%;
+            border: 2px solid var(--hud-color);
+        }
+        .progress-brackets::before { border-right: none; }
+        .progress-brackets::after  { border-left: none; }
+
+        .status-text {
+            font-size: 1rem;
+            color: var(--neon-green);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: pulse-opacity 2s infinite;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes glitch-anim {
+            0%   { clip-path: polygon(0 2%,   100% 2%,   100% 5%,   0 5%);   }
+            20%  { clip-path: polygon(0 15%,  100% 15%,  100% 15%,  0 15%);  }
+            40%  { clip-path: polygon(0 10%,  100% 10%,  100% 20%,  0 20%);  }
+            60%  { clip-path: polygon(0 1%,   100% 1%,   100% 2%,   0 2%);   }
+            80%  { clip-path: polygon(0 33%,  100% 33%,  100% 33%,  0 33%);  }
+            100% { clip-path: polygon(0 44%,  100% 44%,  100% 44%,  0 44%);  }
+        }
+
+        @keyframes glitch-anim2 {
+            0%   { clip-path: polygon(0 25%, 100% 25%, 100% 30%, 0 30%); }
+            20%  { clip-path: polygon(0 3%,  100% 3%,  100% 3%,  0 3%);  }
+            40%  { clip-path: polygon(0 5%,  100% 5%,  100% 20%, 0 20%); }
+            60%  { clip-path: polygon(0 20%, 100% 20%, 100% 20%, 0 20%); }
+            80%  { clip-path: polygon(0 23%, 100% 23%, 100% 23%, 0 23%); }
+            100% { clip-path: polygon(0 50%, 100% 50%, 100% 50%, 0 50%); }
+        }
+
+        @keyframes pulse-opacity {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-container">
+        <video id="bg-video" autoplay loop muted playsinline>
+            <source src="Intro.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <canvas id="particles-canvas"></canvas>
+    <div class="overlay-scanlines"></div>
+    <div class="overlay-vignette"></div>
+
+    <!-- HUD Top Left -->
+    <div class="hud hud-tl">
+        SYS.CHRONO_SYNC<br>
+        <span style="font-size:0.7em;opacity:0.7;">[REAL-TIME ACTIVE]</span>
+    </div>
+
+    <!-- HUD Top Right: Radar -->
+    <div class="hud hud-tr">
+        <div>
+            STATUS: <span style="color:#fff;">ONLINE</span><br>
+            THREAT: <span style="color:var(--neon-green);" id="threat-level">SCANNING</span>
+        </div>
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="var(--neon-green)" stroke-width="2" stroke-dasharray="10 6" opacity="0.9">
+                <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="12s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="50" cy="50" r="32" fill="none" stroke="var(--neon-green)" stroke-width="1" opacity="0.4"/>
+            <circle cx="50" cy="50" r="6" fill="var(--neon-green)">
+                <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <!-- Blip enemigo que aparece y desaparece -->
+            <circle id="radar-blip" cx="72" cy="30" r="4" fill="#ff2222">
+                <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite"/>
+            </circle>
+            <line x1="50" y1="2"  x2="50" y2="12"  stroke="var(--neon-green)" stroke-width="2" opacity="0.8"/>
+            <line x1="50" y1="88" x2="50" y2="98"  stroke="var(--neon-green)" stroke-width="2" opacity="0.8"/>
+            <line x1="2"  y1="50" x2="12" y2="50"  stroke="var(--neon-green)" stroke-width="2" opacity="0.8"/>
+            <line x1="88" y1="50" x2="98" y2="50"  stroke="var(--neon-green)" stroke-width="2" opacity="0.8"/>
+        </svg>
+    </div>
+
+    <!-- HUD Bottom Left: Single Tactical Toast -->
+    <div class="hud hud-bl">
+        <div class="tac-toast" id="tac-toast">
+            <span class="tac-icon" id="tac-icon">💣</span>
+            <span class="tac-text ok" id="tac-text">INITIALIZING...</span>
+        </div>
+    </div>
+
+    <!-- HUD Bottom Right -->
+    <div class="hud hud-br">
+        TARGET: <span style="color:#fff;">LOCKED</span><br>
+        <span id="hex-clock" style="font-size:1.2em;font-weight:bold;text-shadow:0 0 8px var(--neon-green);"></span>
+    </div>
+
+    <!-- CENTER -->
+    <div class="center-container">
+        <div class="stream-live-badge">
+            <div class="live-dot"></div>
+            STREAM LIVE
+            <div class="live-dot"></div>
+        </div>
+
+        <div class="glitch-wrapper">
+            <h1 class="glitch-timer" id="main-timer" data-text="00:00:00">00:00:00</h1>
+        </div>
+
+        <div class="timer-label">[ ELAPSED TIME — REAL-TIME SYNC ]</div>
+
+        <div class="progress-container">
+            <div class="progress-brackets"></div>
+            <div class="progress-track">
+                <div class="progress-fill" id="timer-bar"></div>
+            </div>
+        </div>
+
+        <div class="status-text" id="status-text">INITIALIZING SYSTEMS...</div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════
+        // 0. REAL-TIME STOPWATCH (HH:MM:SS)
+        // ═══════════════════════════════════════════
+        const timerEl  = document.getElementById('main-timer');
+        const timerBar = document.getElementById('timer-bar');
+        let startTime  = Date.now();
+        let maxDisplay = 60 * 60; // 1h para la barra de progreso
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const h = Math.floor(elapsed / 3600);
+            const m = Math.floor((elapsed % 3600) / 60);
+            const s = elapsed % 60;
+
+            const hh = h.toString().padStart(2, '0');
+            const mm = m.toString().padStart(2, '0');
+            const ss = s.toString().padStart(2, '0');
+            const display = h > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
+
+            timerEl.innerText = display;
+            timerEl.setAttribute('data-text', display);
+
+            // Barra crece con el tiempo (hasta 1 hora = 100%)
+            const pct = Math.min((elapsed / maxDisplay) * 100, 100);
+            timerBar.style.width = pct + '%';
+        }
+
+        setInterval(updateTimer, 500);
+        updateTimer();
+
+        // ═══════════════════════════════════════════
+        // 1. STATUS TEXT ROTATION
+        // ═══════════════════════════════════════════
+        const statusPhrases = [
+            "WARMING UP ENGINES...",
+            "ADJUSTING AIM...",
+            "CONNECTING TO SERVERS...",
+            "CALIBRATING SIGHTS...",
+            "HOLDING POSITION...",
+            "GEARING UP FOR COMBAT...",
+            "GETTING IN THE ZONE...",
+            "STAND BY — DEPLOYING SOON...",
+            "CHECKING LOADOUT..."
+        ];
+
+        const statusEl = document.getElementById('status-text');
+        setInterval(() => {
+            const r = statusPhrases[Math.floor(Math.random() * statusPhrases.length)];
+            statusEl.innerText = r;
+        }, 4000);
+
+        // ═══════════════════════════════════════════
+        // 2. TACTICAL TOAST — one message at a time
+        // ═══════════════════════════════════════════
+        const tacToast  = document.getElementById('tac-toast');
+        const tacIconEl = document.getElementById('tac-icon');
+        const tacTextEl = document.getElementById('tac-text');
+        const threatEl  = document.getElementById('threat-level');
+
+        const tacMessages = [
+            { icon: '💣', text: 'LOADING BOMBS — ONE BY ONE...',          cls: 'ok'    },
+            { icon: '🎭', text: 'PUTTING ON THE MASK...',                  cls: 'ok'    },
+            { icon: '🎯', text: 'ENEMY DETECTED — TRACKING...',            cls: 'alert' },
+            { icon: '🔫', text: 'WEAPON EQUIPPED — READY TO FIRE',         cls: 'ok'    },
+            { icon: '📡', text: 'SCANNING PERIMETER...',                    cls: 'ok'    },
+            { icon: '💀', text: 'TARGET ELIMINATED — MOVING ON',            cls: 'alert' },
+            { icon: '🧤', text: 'GLOVES ON — HANDS CLEAN',                 cls: 'ok'    },
+            { icon: '⚠️',  text: 'HOSTILE MOVEMENT DETECTED',               cls: 'warn'  },
+            { icon: '🔋', text: 'ENERGY CELLS CHARGED — 100%',             cls: 'ok'    },
+            { icon: '🪖', text: 'HELMET SECURED — LOCKED IN',              cls: 'ok'    },
+            { icon: '🗺️',  text: 'MAP LOADED — ROUTE CALCULATED',           cls: 'ok'    },
+            { icon: '💥', text: 'DETONATION SEQUENCE PRIMED',               cls: 'warn'  },
+            { icon: '👁️',  text: 'EYES ON THE ENEMY...',                    cls: 'alert' },
+            { icon: '🏃', text: 'FLANKING — DO NOT ENGAGE YET',            cls: 'warn'  },
+            { icon: '🔊', text: 'COMMS ONLINE — CHANNEL CLEAR',            cls: 'ok'    },
+            { icon: '🧱', text: 'COVER ESTABLISHED — HOLDING LINE',        cls: 'ok'    },
+            { icon: '🚨', text: 'RED ALERT — ENEMY AT SPAWN',              cls: 'alert' },
+            { icon: '🛡️',  text: 'ARMOR PLATED — READY FOR IMPACT',        cls: 'ok'    },
+            { icon: '🕵️',  text: 'RECON IN PROGRESS — STAY SILENT',        cls: 'ok'    },
+            { icon: '⚡', text: 'BOOSTING REFLEXES — FULL SPEED',          cls: 'ok'    },
+            { icon: '🔒', text: 'SECTOR LOCKED — ACCESS DENIED TO ENEMY', cls: 'ok'    },
+            { icon: '🧨', text: 'FUSE LIT — COUNTDOWN ACTIVE',             cls: 'warn'  },
+            { icon: '🎮', text: 'CONTROLLER SYNCED — INPUT READY',         cls: 'ok'    },
+            { icon: '🩸', text: 'NO MERCY MODE — ACTIVATED',               cls: 'alert' },
+            { icon: '🏹', text: 'AIM LOCKED — FIRE ON COMMAND',            cls: 'ok'    },
+        ];
+
+        const threatStates = [
+            { txt: 'SCANNING',  col: 'var(--neon-green)' },
+            { txt: 'NEUTRAL',   col: 'var(--neon-green)' },
+            { txt: 'DETECTED',  col: '#ffcc00' },
+            { txt: 'HOSTILE',   col: '#ff4444' },
+            { txt: 'CRITICAL',  col: '#ff0000' },
+        ];
+
+        let msgIndex = 0;
+
+        function showNextTacMessage() {
+            // Fade out
+            tacToast.classList.remove('visible');
+
+            setTimeout(() => {
+                const msg = tacMessages[msgIndex % tacMessages.length];
+                msgIndex++;
+
+                tacIconEl.innerText = msg.icon;
+                tacTextEl.innerText = msg.text;
+                tacTextEl.className = `tac-text ${msg.cls}`;
+
+                // Update border color to match severity
+                if (msg.cls === 'alert') {
+                    tacToast.style.borderColor = '#ff4444';
+                    const t = threatStates[3 + Math.floor(Math.random()*2)]; // hostile/critical
+                    threatEl.innerText = t.txt; threatEl.style.color = t.col;
+                } else if (msg.cls === 'warn') {
+                    tacToast.style.borderColor = '#ffcc00';
+                    threatEl.innerText = 'DETECTED'; threatEl.style.color = '#ffcc00';
+                } else {
+                    tacToast.style.borderColor = 'var(--neon-green)';
+                    threatEl.innerText = 'SCANNING'; threatEl.style.color = 'var(--neon-green)';
+                }
+
+                // Fade in
+                tacToast.classList.add('visible');
+            }, 500); // wait for fade out to complete
+        }
+
+        // Shuffle messages on start
+        tacMessages.sort(() => Math.random() - 0.5);
+
+        showNextTacMessage();
+        setInterval(showNextTacMessage, 4000);
+
+        // ═══════════════════════════════════════════
+        // 3. HEX CLOCK (bottom right)
+        // ═══════════════════════════════════════════
+        const hexClock = document.getElementById('hex-clock');
+        setInterval(() => {
+            let d = "";
+            for (let i = 0; i < 6; i++) d += Math.floor(Math.random()*16).toString(16).toUpperCase();
+            hexClock.innerText = `STREAM: ${d}`;
+        }, 150);
+
+        // ═══════════════════════════════════════════
+        // 4. PARTICLES
+        // ═══════════════════════════════════════════
+        const canvas = document.getElementById('particles-canvas');
+        const ctx    = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x       = Math.random() * canvas.width;
+                this.y       = Math.random() * canvas.height;
+                this.size    = Math.random() * 2.5 + 0.5;
+                this.speedX  = Math.random() * 1 - 0.5;
+                this.speedY  = Math.random() * -1 - 0.5;
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.y < 0) { this.y = canvas.height; this.x = Math.random() * canvas.width; }
+                if (Math.random() > 0.98) this.opacity = Math.random() * 0.8 + 0.2;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle    = `rgba(57, 255, 20, ${this.opacity})`;
+                ctx.shadowBlur   = 10;
+                ctx.shadowColor  = '#39ff14';
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 70; i++) particles.push(new Particle());
+
+        (function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        })();
+    </script>
+</body>
+</html>

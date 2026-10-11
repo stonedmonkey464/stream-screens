@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Ending Overlay - Toxic Green</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-green: #0a1f0a;
+            --bg-color: #050505;
+            --text-color: #ffffff;
+            --hud-color: rgba(57, 255, 20, 0.6);
+            --alert-color: #ff3333; /* Red for shutdown sequence */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--text-color);
+        }
+
+        /* --- BACKGROUND FALLBACK & VIDEO --- */
+        .bg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: radial-gradient(circle at center, #112b11 0%, #000000 70%);
+        }
+
+        #bg-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.85;
+        }
+
+        /* --- OVERLAYS: SCANLINES & VIGNETTE --- */
+        .overlay-scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.3) 50%,
+                rgba(0,0,0,0.3)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            /* Slow flickering for ending screen */
+            animation: screen-flicker 8s infinite; 
+        }
+
+        .overlay-vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            box-shadow: inset 0 0 250px rgba(0, 0, 0, 0.95);
+            pointer-events: none;
+        }
+
+        /* --- CANVAS PARTICLES --- */
+        #particles-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        /* --- HUD ELEMENTS --- */
+        .hud {
+            position: absolute;
+            z-index: 10;
+            color: var(--hud-color);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px rgba(57, 255, 20, 0.3);
+        }
+
+        /* Top Left */
+        .hud-tl {
+            top: 40px;
+            left: 40px;
+            border-left: 2px solid var(--hud-color);
+            padding-left: 10px;
+        }
+
+        /* Top Right: Power Icon & Status */
+        .hud-tr {
+            top: 40px;
+            right: 40px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .hud-tr svg {
+            width: 45px;
+            height: 45px;
+            filter: drop-shadow(0 0 8px var(--alert-color));
+            overflow: visible;
+        }
+
+        /* Bottom Left: Terminal */
+        .hud-bl {
+            bottom: 40px;
+            left: 40px;
+            width: 300px;
+            height: 100px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            font-size: 0.75rem;
+            opacity: 0.6;
+        }
+
+        /* Bottom Right: Coordinates/System */
+        .hud-br {
+            bottom: 40px;
+            right: 40px;
+            text-align: right;
+            border-right: 2px solid var(--hud-color);
+            padding-right: 10px;
+        }
+
+        /* --- CENTER CONTENT (MOVED TO RIGHT) --- */
+        .center-container {
+            position: absolute;
+            top: 50%;
+            right: 8%; /* Positioned on the right to leave character visible */
+            left: auto;
+            transform: translateY(-50%);
+            z-index: 20;
+            text-align: right; /* Text aligned to the right */
+            width: 50%;
+            max-width: 800px;
+        }
+
+        /* Glitch Text Effect */
+        .glitch-wrapper {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .glitch-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 5.5rem; 
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: #ffffff;
+            text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--dark-green);
+            position: relative;
+            display: inline-block;
+            /* Slower, heavier glitch for shutdown */
+            animation: glitch-anim-heavy 5s infinite linear alternate-reverse;
+        }
+
+        .glitch-text::before,
+        .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        .glitch-text::before {
+            left: 3px;
+            text-shadow: -2px 0 var(--alert-color);
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+            animation: glitch-anim 4s infinite linear alternate-reverse;
+        }
+
+        .glitch-text::after {
+            left: -3px;
+            text-shadow: -2px 0 var(--neon-green);
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+            animation: glitch-anim2 4.5s infinite linear alternate-reverse;
+        }
+        
+        .sub-glitch {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            color: var(--neon-green);
+            letter-spacing: 8px;
+            text-shadow: 0 0 10px var(--neon-green);
+            margin-bottom: 25px;
+            opacity: 0.9;
+        }
+
+        /* Shutdown Progress Bar (Draining) */
+        .progress-container {
+            width: 70%;
+            margin: 30px 0 30px auto; /* Auto margin on left pushes it right */
+            position: relative;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(10, 31, 10, 0.4);
+            border: 1px solid rgba(57, 255, 20, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .shutdown-fill {
+            height: 100%;
+            background: var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green);
+            width: 100%;
+            /* Animation that simulates power draining */
+            animation: drain-power 10s infinite ease-out;
+            transform-origin: right;
+        }
+
+        .progress-brackets {
+            position: absolute;
+            top: -8px;
+            left: -15px;
+            right: -15px;
+            bottom: -8px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .progress-brackets::before, .progress-brackets::after {
+            content: '';
+            width: 10px;
+            height: 100%;
+            border: 2px solid var(--hud-color);
+        }
+        .progress-brackets::before { border-right: none; }
+        .progress-brackets::after { border-left: none; }
+
+        /* Sub Status Text */
+        .status-text {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            animation: pulse-opacity 4s infinite;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes drain-power {
+            0% { transform: scaleX(1); opacity: 1; }
+            80% { transform: scaleX(0.05); opacity: 0.5; }
+            95% { transform: scaleX(0); opacity: 0; }
+            100% { transform: scaleX(0); opacity: 0; }
+        }
+
+        @keyframes screen-flicker {
+            0%, 96%, 98%, 100% { opacity: 1; }
+            97%, 99% { opacity: 0.8; }
+        }
+
+        @keyframes glitch-anim {
+            0% { clip-path: polygon(0 2%, 100% 2%, 100% 5%, 0 5%); }
+            20% { clip-path: polygon(0 15%, 100% 15%, 100% 15%, 0 15%); }
+            40% { clip-path: polygon(0 10%, 100% 10%, 100% 20%, 0 20%); }
+            60% { clip-path: polygon(0 1%, 100% 1%, 100% 2%, 0 2%); }
+            80% { clip-path: polygon(0 33%, 100% 33%, 100% 33%, 0 33%); }
+            100% { clip-path: polygon(0 44%, 100% 44%, 100% 44%, 0 44%); }
+        }
+
+        @keyframes glitch-anim2 {
+            0% { clip-path: polygon(0 25%, 100% 25%, 100% 30%, 0 30%); }
+            20% { clip-path: polygon(0 3%, 100% 3%, 100% 3%, 0 3%); }
+            40% { clip-path: polygon(0 5%, 100% 5%, 100% 20%, 0 20%); }
+            60% { clip-path: polygon(0 20%, 100% 20%, 100% 20%, 0 20%); }
+            80% { clip-path: polygon(0 23%, 100% 23%, 100% 23%, 0 23%); }
+            100% { clip-path: polygon(0 50%, 100% 50%, 100% 50%, 0 50%); }
+        }
+
+        @keyframes glitch-anim-heavy {
+            0%, 100% { transform: translate(0, 0); }
+            98% { transform: translate(-2px, 1px); }
+            99% { transform: translate(2px, -1px); opacity: 0.8; }
+        }
+
+        @keyframes pulse-opacity {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.3; }
+        }
+
+        @keyframes power-flash {
+            0%, 100% { stroke: var(--alert-color); filter: drop-shadow(0 0 8px var(--alert-color)); }
+            50% { stroke: #550000; filter: none; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Video & Background -->
+    <div class="bg-container">
+        <!-- 
+            OBS INSTRUCTIONS: 
+            Place 'ending.mp4' in the same folder as this HTML file.
+        -->
+        <video id="bg-video" autoplay loop muted playsinline>
+            <source src="ending.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Aesthetic Overlays -->
+    <canvas id="particles-canvas"></canvas>
+    <div class="overlay-scanlines"></div>
+    <div class="overlay-vignette"></div>
+
+    <!-- HUD Elements -->
+    <div class="hud hud-tl">
+        SYS.HALT_SEQ <br>
+        <span style="font-size: 0.7em; opacity: 0.7; color: var(--alert-color);">[INITIATING SHUTDOWN]</span>
+    </div>
+
+    <div class="hud hud-tr">
+        <div>
+            STATUS: <span style="color: var(--alert-color);">TERMINATING</span><br>
+            UPLINK: <span style="color: #666;">DISCONNECTED</span>
+        </div>
+        <!-- Power Off Icon SVG -->
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 15 L50 45" stroke="var(--alert-color)" stroke-width="8" stroke-linecap="round">
+                <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
+            </path>
+            <path d="M30 30 A 35 35 0 1 0 70 30" fill="none" stroke="var(--alert-color)" stroke-width="8" stroke-linecap="round" style="animation: power-flash 2s infinite;" />
+        </svg>
+    </div>
+
+    <div class="hud hud-bl" id="terminal">
+        <!-- Terminal lines generated by JS -->
+    </div>
+
+    <div class="hud hud-br">
+        DATA LOGS: <span style="color: var(--neon-green);">SAVED</span><br>
+        <span id="hex-clock" style="font-size: 1.2em; font-weight: bold; color: #555;">0x000000</span>
+    </div>
+
+    <!-- Center Typography & Loaders -->
+    <div class="center-container">
+        <div class="glitch-wrapper">
+            <h1 class="glitch-text" data-text="STREAM ENDING">STREAM ENDING</h1>
+        </div>
+        <div class="sub-glitch">OFFLINE</div>
+        
+        <div class="progress-container">
+            <div class="progress-brackets"></div>
+            <div class="progress-track">
+                <!-- Draining power bar -->
+                <div class="shutdown-fill"></div>
+            </div>
+        </div>
+
+        <div class="status-text" id="status-text">POWERING DOWN CORE SYSTEMS...</div>
+    </div>
+
+    <script>
+        // --- 1. SUBTEXT UPDATER (SHUTDOWN THEME) ---
+        const statusPhrases = [
+            "POWERING DOWN CORE SYSTEMS...",
+            "SAVING VOD LOGS...",
+            "SEVERING NEURAL CONNECTION...",
+            "PURGING TEMPORARY FILES...",
+            "INITIATING SLEEP MODE...",
+            "THANK YOU FOR WATCHING...",
+            "SEE YOU NEXT TIME..."
+        ];
+        
+        const statusElement = document.getElementById('status-text');
+        let phraseIndex = 0;
+        
+        setInterval(() => {
+            phraseIndex = (phraseIndex + 1) % statusPhrases.length;
+            statusElement.innerText = statusPhrases[phraseIndex];
+        }, 3500); 
+
+        // --- 2. TERMINAL EFFECT (SHUTDOWN THEME) ---
+        const terminal = document.getElementById('terminal');
+        const processes = [
+            "kill_process(broadcast)", "saving_session_data()", "closing_ports...",
+            "sys.exit(0)", "disconnect_peer()", "vram_purge_complete",
+            "unloading_assets...", "finalizing_logs...", "power_cut()"
+        ];
+
+        function addTerminalLine() {
+            const line = document.createElement('div');
+            const isHex = Math.random() > 0.7; 
+            
+            if(isHex) {
+                let hex = "0x";
+                for(let i=0; i<8; i++) {
+                    hex += Math.floor(Math.random()*16).toString(16).toUpperCase();
+                }
+                line.innerText = `> FREE_MEM: [${hex}]`;
+            } else {
+                const proc = processes[Math.floor(Math.random() * processes.length)];
+                line.innerText = `> TERM: ${proc}`;
+                if(proc.includes("kill") || proc.includes("exit")) {
+                    line.style.color = "var(--alert-color)";
+                }
+            }
+
+            terminal.appendChild(line);
+
+            if (terminal.childElementCount > 4) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        setInterval(addTerminalLine, 1500); 
+        addTerminalLine(); 
+
+        // --- 3. HEX CLOCK (SLOWING DOWN TO STOP) ---
+        const hexClock = document.getElementById('hex-clock');
+        let clockSpeed = 100;
+        
+        function updateClock() {
+            let dataStream = "";
+            for(let i=0; i<6; i++) {
+                dataStream += Math.floor(Math.random()*16).toString(16).toUpperCase();
+            }
+            hexClock.innerText = `SYS_HALT: ${dataStream}`;
+            
+            // Randomly pause the clock to simulate system hanging/shutting down
+            clockSpeed = Math.random() > 0.8 ? 1500 : 250;
+            setTimeout(updateClock, clockSpeed);
+        }
+        updateClock();
+
+        // --- 4. GREEN ENERGY PARTICLES (FALLING/DRAINING) ---
+        const canvas = document.getElementById('particles-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = Math.random() * 0.2 - 0.1; 
+                this.speedY = Math.random() * 1 + 0.5; // Positive Y speed = falling down
+                this.opacity = Math.random() * 0.3 + 0.1;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY; // Particles slowly fall down (losing energy)
+
+                if (this.y > canvas.height) {
+                    this.y = -10;
+                    this.x = Math.random() * canvas.width;
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(57, 255, 20, ${this.opacity})`;
+                ctx.fill(); // Removed glow to look more "drained"
+            }
+        }
+
+        function initParticles() {
+            for (let i = 0; i < 40; i++) { 
+                particles.push(new Particle());
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animateParticles);
+        }
+
+        initParticles();
+        animateParticles();
+    </script>
+</body>
+</html>
